@@ -28,7 +28,7 @@
         <dependency>
             <groupId>org.keycloak</groupId>
             <artifactId>keycloak-services</artifactId>
-            <version>15.1.0</version>
+            <version>15.1.1</version>
             <type>jar</type>
         </dependency>
         <dependency>
