@@ -34,13 +34,13 @@
         <dependency>
             <groupId>org.keycloak</groupId>
             <artifactId>keycloak-server-spi</artifactId>
-            <version>15.1.0</version>
+            <version>15.1.1</version>
             <type>jar</type>
         </dependency>
         <dependency>
             <groupId>org.keycloak</groupId>
             <artifactId>keycloak-server-spi-private</artifactId>
-            <version>15.1.0</version>
+            <version>15.1.1</version>
             <type>jar</type>
         </dependency>
         <dependency>
