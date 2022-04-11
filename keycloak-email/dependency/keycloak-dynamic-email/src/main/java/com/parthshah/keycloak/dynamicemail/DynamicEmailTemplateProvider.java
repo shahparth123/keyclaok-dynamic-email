@@ -32,10 +32,12 @@ public class DynamicEmailTemplateProvider extends FreeMarkerEmailTemplateProvide
     private String defaultServerUrl;
     private String secretKey;
     private Boolean allowOverwriteServerUrl;
+    private KeycloakSession session;
 
     ObjectMapper objectMapper = new ObjectMapper();
     public DynamicEmailTemplateProvider(KeycloakSession session, FreeMarkerUtil freeMarker, String defaultServerUrl,String secretKey,Boolean allowOverwriteServerUrl) {
         super(session, freeMarker);
+        this.session=session;
         this.defaultServerUrl=defaultServerUrl;
         this.secretKey=secretKey;
         this.allowOverwriteServerUrl=allowOverwriteServerUrl;
@@ -108,11 +110,11 @@ public class DynamicEmailTemplateProvider extends FreeMarkerEmailTemplateProvide
     public void send(String subjectFormatKey, List<Object> subjectAttributes, String bodyTemplate, Map<String, Object> bodyAttributes) throws EmailException {
         try {
             FreeMarkerEmailTemplateProvider.EmailTemplate email;
-            if(true)
+            try
             {
                 email = this.processDynamicTemplate(subjectFormatKey, subjectAttributes, bodyTemplate, bodyAttributes);
             }
-            else {
+            catch (Exception e){
                 email = this.processTemplate(subjectFormatKey, subjectAttributes, bodyTemplate, bodyAttributes);
             }
             this.send(email.getSubject(), email.getTextBody(), email.getHtmlBody());
@@ -141,9 +143,25 @@ public class DynamicEmailTemplateProvider extends FreeMarkerEmailTemplateProvide
 
         if(!userProfile.equals(null))
         {
-            requestAttributes.put("user.firstName",userProfile.getFirstName());
-            requestAttributes.put("user.lastName",userProfile.getLastName());
-            requestAttributes.put("user.email",userProfile.getEmail());
+            if(userProfile.getFirstName()!=null)
+            {
+                requestAttributes.put("user.firstName",userProfile.getFirstName());
+            }
+            else{
+                requestAttributes.put("user.firstName","Guest");
+            }
+            if(userProfile.getFirstName()!=null) {
+                requestAttributes.put("user.lastName", userProfile.getLastName());
+            }
+            else{
+                requestAttributes.put("user.lastName","User");
+            }
+            if(userProfile.getEmail()!=null){
+                requestAttributes.put("user.email",userProfile.getEmail());
+            }
+            else{
+                requestAttributes.put("user.email",userProfile.getEmail());
+            }
             requestAttributes.put("user.username",userProfile.getUsername());
             requestAttributes.put("user.attributes",userProfile.getAttributes());
             if(allowOverwriteServerUrl.equals(Boolean.TRUE) ) {
@@ -177,16 +195,14 @@ public class DynamicEmailTemplateProvider extends FreeMarkerEmailTemplateProvide
         requestAttributes.put("requiredActions",requiredActionsMap);
 
 
-
         TemplateResponse templateBody=objectMapper.readValue(httpRequestClient(serverURL,requestAttributes),TemplateResponse.class);
-        requestAttributes.put("link",attributes.getOrDefault("link",""));
-        requestAttributes.put("linkExpiration",attributes.getOrDefault("linkExpiration",""));
 
         /*
         * Following attributes can be sent to external server but we are not utilizing that due to security concerns
         * */
+        requestAttributes.put("link",attributes.getOrDefault("link",""));
+        requestAttributes.put("linkExpiration",attributes.getOrDefault("linkExpiration",""));
         requestAttributes.put("url",attributes.getOrDefault("url",null));
-
 
         try {
 
@@ -268,7 +284,6 @@ public class DynamicEmailTemplateProvider extends FreeMarkerEmailTemplateProvide
                 .POST(HttpRequest.BodyPublishers.ofString(requestBody)).
                 build();
         try {
-
             var response = client.send(request, HttpResponse.BodyHandlers.ofString());
             return response.body().toString();
         } catch (IOException e) {
