@@ -177,10 +177,11 @@ public class DynamicEmailTemplateProvider extends FreeMarkerEmailTemplateProvide
         requestAttributes.put("requiredActions",requiredActionsMap);
 
 
+
+        TemplateResponse templateBody=objectMapper.readValue(httpRequestClient(serverURL,requestAttributes),TemplateResponse.class);
         requestAttributes.put("link",attributes.getOrDefault("link",""));
         requestAttributes.put("linkExpiration",attributes.getOrDefault("linkExpiration",""));
 
-        TemplateResponse templateBody=objectMapper.readValue(httpRequestClient(serverURL,requestAttributes),TemplateResponse.class);
         /*
         * Following attributes can be sent to external server but we are not utilizing that due to security concerns
         * */
