@@ -5,11 +5,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.keycloak.broker.provider.BrokeredIdentityContext;
 import org.keycloak.common.util.ObjectUtil;
 import org.keycloak.email.EmailException;
+import org.keycloak.email.EmailSenderProvider;
+import org.keycloak.email.EmailTemplateProvider;
 import org.keycloak.email.freemarker.FreeMarkerEmailTemplateProvider;
 import org.keycloak.email.freemarker.beans.EventBean;
 import org.keycloak.email.freemarker.beans.ProfileBean;
 import org.keycloak.models.KeycloakSession;
+import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
+import org.keycloak.sessions.AuthenticationSessionModel;
 import org.keycloak.theme.FreeMarkerException;
 import org.keycloak.theme.FreeMarkerUtil;
 import org.keycloak.theme.Theme;
@@ -28,11 +32,17 @@ import java.util.stream.Collectors;
 
 public class DynamicEmailTemplateProvider extends FreeMarkerEmailTemplateProvider {
 
-    private static final Logger LOG = Logger.getLogger(FreeMarkerEmailTemplateProvider.class.getName());
+    private static final Logger LOG = Logger.getLogger(DynamicEmailTemplateProvider.class.getName());
     private String defaultServerUrl;
     private String secretKey;
     private Boolean allowOverwriteServerUrl;
-    private KeycloakSession session;
+
+    protected KeycloakSession session;
+    protected AuthenticationSessionModel authenticationSession;
+    protected FreeMarkerUtil freeMarker;
+    protected RealmModel realm;
+    protected UserModel user;
+    protected final Map<String, Object> attributes = new HashMap();
 
     ObjectMapper objectMapper = new ObjectMapper();
     public DynamicEmailTemplateProvider(KeycloakSession session, FreeMarkerUtil freeMarker, String defaultServerUrl,String secretKey,Boolean allowOverwriteServerUrl) {
@@ -43,15 +53,77 @@ public class DynamicEmailTemplateProvider extends FreeMarkerEmailTemplateProvide
         this.allowOverwriteServerUrl=allowOverwriteServerUrl;
     }
 
+    public EmailTemplateProvider setRealm(RealmModel realm) {
+        this.realm = realm;
+        return this;
+    }
+
+    public EmailTemplateProvider setUser(UserModel user) {
+        this.user = user;
+        return this;
+    }
+
+    public EmailTemplateProvider setAttribute(String name, Object value) {
+        this.attributes.put(name, value);
+        return this;
+    }
+
+    public EmailTemplateProvider setAuthenticationSession(AuthenticationSessionModel authenticationSession) {
+        this.authenticationSession = authenticationSession;
+        return this;
+    }
+
+    protected String getRealmName() {
+        return this.realm.getDisplayName() != null ? this.realm.getDisplayName() : ObjectUtil.capitalize(this.realm.getName());
+    }
+
+
     @Override
     public void sendSmtpTestEmail(Map<String, String> config, UserModel user) throws EmailException {
+        LOG.info(this.session.toString());
+        LOG.info(this.session.getContext().getRealm().toString());
         this.setRealm(this.session.getContext().getRealm());
         this.setUser(user);
         Map<String, Object> attributes = new HashMap(this.attributes);
         attributes.put("user", new ProfileBean(user));
         attributes.put("realmName", this.realm.getName());
-        FreeMarkerEmailTemplateProvider.EmailTemplate email = this.processTemplate("emailTestSubject", Collections.emptyList(), "email-test.ftl", attributes);
-        this.send(config, email.getSubject(), email.getTextBody(), email.getHtmlBody());
+        LOG.info("subject emailTestSubject");
+
+        try {
+            FreeMarkerEmailTemplateProvider.EmailTemplate email = this.processTestTemplate("emailTestSubject", Collections.emptyList(), "email-test.ftl", attributes);
+            LOG.info("Test tempalte processed");
+
+            this.sendCustom(config, email.getSubject(), email.getTextBody(), email.getHtmlBody());
+        }
+        catch (Exception e){
+            LOG.info("dynamic template test mail fail"+e.getMessage());
+            throw new EmailException("dynamic sendSmtpTestEmail failed",e);
+        }
+    }
+
+    protected void sendCustom(Map<String, String> config, String subject, String textBody, String htmlBody) throws EmailException {
+        this.sendCustom((Map)config, (String)subject, textBody, (String)htmlBody, (String)null);
+    }
+
+    protected void sendCustom(Map<String, String> config, String subject, String textBody, String htmlBody, String address) throws EmailException {
+        EmailSenderProvider emailSender = (EmailSenderProvider)this.session.getProvider(EmailSenderProvider.class);
+        if (address == null) {
+            LOG.info(this.user.getEmail());
+            emailSender.send(config, this.user, subject, textBody, htmlBody);
+        } else {
+            emailSender.send(config, address, subject, textBody, htmlBody);
+        }
+
+    }
+    protected void send(Map<String, String> config, String subject, String textBody, String htmlBody, String address) throws EmailException {
+        EmailSenderProvider emailSender = (EmailSenderProvider)this.session.getProvider(EmailSenderProvider.class);
+        if (address == null) {
+            LOG.info(this.user.getEmail());
+            emailSender.send(config, this.user, subject, textBody, htmlBody);
+        } else {
+            emailSender.send(config, address, subject, textBody, htmlBody);
+        }
+
     }
 
     @Override
@@ -112,12 +184,16 @@ public class DynamicEmailTemplateProvider extends FreeMarkerEmailTemplateProvide
             FreeMarkerEmailTemplateProvider.EmailTemplate email;
             try
             {
+                LOG.info("subject "+subjectFormatKey);
+                LOG.info("bodyTemplate "+ bodyTemplate);
+
                 email = this.processDynamicTemplate(subjectFormatKey, subjectAttributes, bodyTemplate, bodyAttributes);
             }
             catch (Exception e){
+                LOG.info("error "+e.getMessage());
                 email = this.processTemplate(subjectFormatKey, subjectAttributes, bodyTemplate, bodyAttributes);
             }
-            this.send(email.getSubject(), email.getTextBody(), email.getHtmlBody());
+            this.send(email.getSubject(), email.getTextBody(), email.getHtmlBody(),null);
         } catch (EmailException var6) {
             throw var6;
         } catch (Exception var7) {
@@ -140,7 +216,7 @@ public class DynamicEmailTemplateProvider extends FreeMarkerEmailTemplateProvide
         requestAttributes.put("realmName",attributes.getOrDefault("realmName",""));
         ProfileBean userProfile = (ProfileBean)attributes.getOrDefault("user",null);
         String serverURL=defaultServerUrl;
-
+        LOG.info("serverUrl"+defaultServerUrl);
         if(!userProfile.equals(null))
         {
             if(userProfile.getFirstName()!=null)
@@ -170,6 +246,7 @@ public class DynamicEmailTemplateProvider extends FreeMarkerEmailTemplateProvide
             }
             }
         }
+        LOG.info("All properties fetched");
 
         if(attributes.containsKey("event"))
         {
@@ -193,9 +270,11 @@ public class DynamicEmailTemplateProvider extends FreeMarkerEmailTemplateProvide
         }
 
         requestAttributes.put("requiredActions",requiredActionsMap);
+        LOG.info("All actions fetched");
 
 
         TemplateResponse templateBody=objectMapper.readValue(httpRequestClient(serverURL,requestAttributes),TemplateResponse.class);
+        LOG.info("Object Mapper worked");
 
         /*
         * Following attributes can be sent to external server but we are not utilizing that due to security concerns
@@ -203,6 +282,7 @@ public class DynamicEmailTemplateProvider extends FreeMarkerEmailTemplateProvide
         requestAttributes.put("link",attributes.getOrDefault("link",""));
         requestAttributes.put("linkExpiration",attributes.getOrDefault("linkExpiration",""));
         requestAttributes.put("url",attributes.getOrDefault("url",null));
+        LOG.info("templating starting");
 
         try {
 
@@ -231,13 +311,15 @@ public class DynamicEmailTemplateProvider extends FreeMarkerEmailTemplateProvide
             return new FreeMarkerEmailTemplateProvider.EmailTemplate(subject, textBody, htmlBody);
         }
         catch (Exception e){
+            LOG.info("templating failed");
+
             return new FreeMarkerEmailTemplateProvider.EmailTemplate("", "", "htmlBody");
         }
     }
 
 
-        @Override
-    protected FreeMarkerEmailTemplateProvider.EmailTemplate processTemplate(String subjectKey, List<Object> subjectAttributes, String template, Map<String, Object> attributes) throws EmailException {
+
+    protected FreeMarkerEmailTemplateProvider.EmailTemplate processTestTemplate(String subjectKey, List<Object> subjectAttributes, String template, Map<String, Object> attributes) throws EmailException {
         try {
             Theme theme = this.getTheme();
             Locale locale = this.session.getContext().resolveLocale(this.user);
@@ -248,26 +330,14 @@ public class DynamicEmailTemplateProvider extends FreeMarkerEmailTemplateProvide
             attributes.put("msg", new MessageFormatterMethod(locale, rb));
             attributes.put("properties", theme.getProperties());
             String subject = (new MessageFormat(rb.getProperty(subjectKey, subjectKey), locale)).format(subjectAttributes.toArray());
-            String textTemplate = String.format("text/%s", template);
+            LOG.info("reached before process");
+            String textBody = "Test Email";
 
-            String textBody;
-            try {
-                textBody = this.freeMarker.processTemplate(attributes, textTemplate, theme);
-            } catch (FreeMarkerException var15) {
-                throw new EmailException("Failed to template plain text email.", var15);
-            }
-
-            String htmlTemplate = String.format("html/%s", template);
-
-            String htmlBody;
-            try {
-                htmlBody = this.freeMarker.processTemplate(attributes, htmlTemplate, theme);
-            } catch (FreeMarkerException var14) {
-                throw new EmailException("Failed to template html email.", var14);
-            }
+            String htmlBody="Test Email";
 
             return new FreeMarkerEmailTemplateProvider.EmailTemplate(subject, textBody, htmlBody);
         } catch (Exception var16) {
+            LOG.info("error "+var16.getMessage());
             throw new EmailException("Failed to template email", var16);
         }
     }
@@ -287,11 +357,14 @@ public class DynamicEmailTemplateProvider extends FreeMarkerEmailTemplateProvide
             var response = client.send(request, HttpResponse.BodyHandlers.ofString());
             return response.body().toString();
         } catch (IOException e) {
+            LOG.info("Network request failed"+e.getMessage());
             e.printStackTrace();
         } catch (InterruptedException e) {
+            LOG.info("Network request interrupted"+e.getMessage());
             e.printStackTrace();
         }
         catch (Exception e){
+            LOG.info("httpClient failed interrupted"+e.getMessage());
             e.printStackTrace();
         }
         return "";

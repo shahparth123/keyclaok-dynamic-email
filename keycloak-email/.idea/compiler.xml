@@ -8,6 +8,7 @@
         <outputRelativeToContentRoot value="true" />
         <module name="keycloak-freemarker-plus" />
         <module name="keycloak-15.1.0" />
+        <module name="keycloak-dynamic-email" />
         <module name="Keycloak" />
         <module name="keycloak-email" />
       </profile>
