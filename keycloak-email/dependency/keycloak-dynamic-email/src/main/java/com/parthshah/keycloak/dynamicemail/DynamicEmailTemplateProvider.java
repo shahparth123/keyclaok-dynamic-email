@@ -17,7 +17,6 @@ import org.keycloak.models.KeycloakUriInfo;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
 import org.keycloak.sessions.AuthenticationSessionModel;
-import org.keycloak.theme.FreeMarkerUtil;
 import org.keycloak.theme.Theme;
 import org.keycloak.theme.beans.LinkExpirationFormatterMethod;
 
@@ -42,12 +41,12 @@ public class DynamicEmailTemplateProvider implements EmailTemplateProvider {
     protected AuthenticationSessionModel authenticationSession;
     protected RealmModel realm;
     protected UserModel user;
-    protected FreeMarkerUtil freeMarker;
+    //protected FreeMarkerUtil freeMarker;
     ObjectMapper objectMapper = new ObjectMapper();
 
-    public DynamicEmailTemplateProvider(KeycloakSession session, FreeMarkerUtil freeMarker, String defaultServerUrl, String secretKey, Boolean allowOverwriteServerUrl) {
+    public DynamicEmailTemplateProvider(KeycloakSession session, String defaultServerUrl, String secretKey, Boolean allowOverwriteServerUrl) {
         this.session = session;
-        this.freeMarker = freeMarker;
+        //this.freeMarker = freeMarker;
         this.defaultServerUrl = defaultServerUrl;
         this.secretKey = secretKey;
         this.allowOverwriteServerUrl = allowOverwriteServerUrl;
@@ -240,7 +239,8 @@ public class DynamicEmailTemplateProvider implements EmailTemplateProvider {
 
 
     protected DynamicEmailTemplate processDynamicTemplate(String subjectKey, List<Object> subjectAttributes, String templateName, Map<String, Object> attributes) throws EmailException, JsonProcessingException {
-
+        LOG.info(subjectKey);
+        LOG.info(templateName);
         HashMap<String, Object> requestAttributes = new HashMap<>();
         requestAttributes.put("subjectFormatKey", subjectKey);
         requestAttributes.put("subjectAttributes", subjectAttributes);
@@ -292,18 +292,18 @@ public class DynamicEmailTemplateProvider implements EmailTemplateProvider {
         HashMap<String, String> requiredActionsMap = new HashMap<>();
         int itemCount = 0;
         for (String item : requiredActions) {
-            //LOG.log(Level.INFO, item);
+            LOG.log(Level.INFO, item);
             requiredActionsMap.put(String.valueOf(itemCount), item);
         }
 
         requestAttributes.put("requiredActions", requiredActionsMap);
-        //LOG.info("All actions fetched");
+        LOG.info("All actions fetched");
 
         String response = httpRequestClient(serverURL, requestAttributes);
         //LOG.info(response);
 
         TemplateResponse templateBody = objectMapper.readValue(response, TemplateResponse.class);
-        //LOG.info("Object Mapper worked");
+        LOG.info("Object Mapper worked");
 
         /*
          * Following attributes can be sent to external server, but we are not utilizing that due to security concerns
@@ -311,7 +311,7 @@ public class DynamicEmailTemplateProvider implements EmailTemplateProvider {
         requestAttributes.put("link", attributes.getOrDefault("link", ""));
         requestAttributes.put("linkExpiration", attributes.getOrDefault("linkExpiration", ""));
         requestAttributes.put("url", attributes.getOrDefault("url", ""));
-        //LOG.info("templating starting");
+        LOG.info("templating starting");
 
         try {
 //            flattenAttributeMap.entrySet().stream()
@@ -320,7 +320,7 @@ public class DynamicEmailTemplateProvider implements EmailTemplateProvider {
             String subject = templateBody.subject;
             String htmlBody = templateBody.htmlTemplate;
             String textBody = templateBody.textTemplate;
-
+            requestAttributes.put("extra",templateBody.getExtra());
             if (subject == null) {
                 subject = "";
             }
@@ -331,7 +331,7 @@ public class DynamicEmailTemplateProvider implements EmailTemplateProvider {
                 textBody = "";
             }
 
-           // LOG.info("flattening request attributes");
+            LOG.info("flattening request attributes");
 //            LOG.info(objectMapper
 //                    .writerWithDefaultPrettyPrinter()
 //                    .writeValueAsString(requestAttributes));
@@ -355,11 +355,12 @@ public class DynamicEmailTemplateProvider implements EmailTemplateProvider {
 
 
     public String httpRequestClient(String requestURL, Map<String, Object> data) throws JsonProcessingException {
+        LOG.info(requestURL);
         var client = HttpClient.newHttpClient();
         String requestBody = objectMapper
                 .writerWithDefaultPrettyPrinter()
                 .writeValueAsString(data);
-
+        //LOG.info(requestBody);
         HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(requestURL))
                 .header("Content-Type", "application/json")
                 .header("Accept", "application/json");
@@ -370,6 +371,7 @@ public class DynamicEmailTemplateProvider implements EmailTemplateProvider {
                 build();
         try {
             var response = client.send(requestPayload, HttpResponse.BodyHandlers.ofString());
+        //    LOG.info(response.body().toString());
             return response.body().toString();
         } catch (IOException e) {
             LOG.warning("Network request failed" + e.getMessage());
