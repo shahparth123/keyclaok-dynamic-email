@@ -150,7 +150,7 @@ public class DynamicEmailTemplateProvider implements EmailTemplateProvider {
     @Override
     public void sendEvent(Event event) throws EmailException {
         Map<String, Object> attributes = new HashMap<>();
-        attributes.put("user", new ProfileBean(user));
+        attributes.put("user", new ProfileBean(user,this.session));
         attributes.put("event", new EventBean(event));
         send(toCamelCase(event.getType()) + "Subject", "event-" + event.getType().toString().toLowerCase() + ".ftl", attributes);
     }
@@ -158,7 +158,7 @@ public class DynamicEmailTemplateProvider implements EmailTemplateProvider {
     @Override
     public void sendPasswordReset(String link, long expirationInMinutes) throws EmailException {
         Map<String, Object> attributes = new HashMap<>(this.attributes);
-        attributes.put("user", new ProfileBean(this.user));
+        attributes.put("user", new ProfileBean(this.user,this.session));
         this.addLinkInfoIntoAttributes(link, expirationInMinutes, attributes);
         attributes.put("realmName", this.getRealmName());
         this.send("passwordResetSubject", "password-reset.ftl", attributes);
@@ -171,7 +171,7 @@ public class DynamicEmailTemplateProvider implements EmailTemplateProvider {
         this.setRealm(this.session.getContext().getRealm());
         this.setUser(user);
         Map<String, Object> attributes = new HashMap<>(this.attributes);
-        attributes.put("user", new ProfileBean(user));
+        attributes.put("user", new ProfileBean(user,this.session));
         attributes.put("realmName", this.realm.getName());
         LOG.info("Payload set in test email");
 
@@ -189,7 +189,7 @@ public class DynamicEmailTemplateProvider implements EmailTemplateProvider {
     @Override
     public void sendConfirmIdentityBrokerLink(String link, long expirationInMinutes) throws EmailException {
         Map<String, Object> attributes = new HashMap<>(this.attributes);
-        attributes.put("user", new ProfileBean(this.user));
+        attributes.put("user", new ProfileBean(this.user,this.session));
         addLinkInfoIntoAttributes(link, expirationInMinutes, attributes);
         attributes.put("realmName", this.getRealmName());
         BrokeredIdentityContext brokerContext = (BrokeredIdentityContext) this.attributes.get("identityProviderBrokerCtx");
@@ -208,7 +208,7 @@ public class DynamicEmailTemplateProvider implements EmailTemplateProvider {
     @Override
     public void sendExecuteActions(String link, long expirationInMinutes) throws EmailException {
         Map<String, Object> attributes = new HashMap<>(this.attributes);
-        attributes.put("user", new ProfileBean(user));
+        attributes.put("user", new ProfileBean(user,this.session));
         addLinkInfoIntoAttributes(link, expirationInMinutes, attributes);
         attributes.put("realmName", getRealmName());
         this.send("executeActionsSubject", "executeActions.ftl", attributes);
@@ -217,7 +217,7 @@ public class DynamicEmailTemplateProvider implements EmailTemplateProvider {
     @Override
     public void sendVerifyEmail(String link, long expirationInMinutes) throws EmailException {
         Map<String, Object> attributes = new HashMap<>(this.attributes);
-        attributes.put("user", new ProfileBean(user));
+        attributes.put("user", new ProfileBean(user,this.session));
         this.addLinkInfoIntoAttributes(link, expirationInMinutes, attributes);
         attributes.put("realmName", this.getRealmName());
         this.send("emailVerificationSubject", "email-verification.ftl", (Map) attributes);
@@ -229,7 +229,7 @@ public class DynamicEmailTemplateProvider implements EmailTemplateProvider {
             throw new IllegalArgumentException("The new email is mandatory");
         } else {
             Map<String, Object> attributes = new HashMap<>(this.attributes);
-            attributes.put("user", new ProfileBean(this.user));
+            attributes.put("user", new ProfileBean(this.user,this.session));
             attributes.put("newEmail", newEmail);
             this.addLinkInfoIntoAttributes(link, expirationInMinutes, attributes);
             attributes.put("realmName", this.getRealmName());
