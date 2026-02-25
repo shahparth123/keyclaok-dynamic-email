@@ -12,10 +12,7 @@ import org.keycloak.email.freemarker.beans.ProfileBean;
 import org.keycloak.events.Event;
 import org.keycloak.events.EventType;
 import org.keycloak.forms.login.freemarker.model.UrlBean;
-import org.keycloak.models.KeycloakSession;
-import org.keycloak.models.KeycloakUriInfo;
-import org.keycloak.models.RealmModel;
-import org.keycloak.models.UserModel;
+import org.keycloak.models.*;
 import org.keycloak.sessions.AuthenticationSessionModel;
 import org.keycloak.theme.Theme;
 import org.keycloak.theme.beans.LinkExpirationFormatterMethod;
@@ -221,6 +218,19 @@ public class DynamicEmailTemplateProvider implements EmailTemplateProvider {
         this.addLinkInfoIntoAttributes(link, expirationInMinutes, attributes);
         attributes.put("realmName", this.getRealmName());
         this.send("emailVerificationSubject", "email-verification.ftl", (Map) attributes);
+    }
+
+    @Override
+    public void sendOrgInviteEmail(OrganizationModel organization, String link, long expirationInMinutes) throws EmailException {
+        Map<String, Object> attributes = new HashMap(this.attributes);
+        this.addLinkInfoIntoAttributes(link, expirationInMinutes, attributes);
+        attributes.put("organization", organization);
+        if (this.user.getFirstName() != null && this.user.getLastName() != null) {
+            attributes.put("firstName", this.user.getFirstName());
+            attributes.put("lastName", this.user.getLastName());
+        }
+        this.send("orgInviteSubject", List.of(organization.getName()), "org-invite.ftl", attributes);
+
     }
 
     @Override
